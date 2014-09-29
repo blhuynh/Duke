@@ -78,12 +78,8 @@ for i = 0, num_nodes - 1 {
 }
 
 // add APCount object to node 20
-objref apc, spikes
-spikes = new Vector()
-apc = new APCount(0.5)
-apc.thresh = 0
-apc.record(spikes)
-
+objref apc
+axon[19] apc = new APCount(0.5)
 
 // ************************** Simulation control ********************************
 proc stimul() {
@@ -97,6 +93,8 @@ proc stimul() {
 	}
 }
 stimul()
+
+print "apc.n = ",apc.n
 
 // ************************** Data analysis & output ****************************
 // Plot Vm(t) at the 45th node
