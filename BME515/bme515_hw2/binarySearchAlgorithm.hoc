@@ -32,8 +32,6 @@ proc iterative(){
 	imin = 0
 	imax = v1.size()-1
 
-	count = 0
-
 	while (imax >= imin){
 		imid = round((imax-imin)/2 + imin)
 		midValue = v1.x[imid]

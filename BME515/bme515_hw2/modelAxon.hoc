@@ -17,7 +17,7 @@ proc params() {
 	
 	// Stimulus parameters
 	mydel = 5					// start at t=5ms [ms]
-	myamp = 0.5					// amplitude [nA]
+	myamp = 1.0					// amplitude [nA]
 	mydur = 0.1					// duration, aka pulsewidth [ms]
 	
 	// Temporal parameters
