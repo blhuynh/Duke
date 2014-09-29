@@ -1,0 +1,134 @@
+//load_file("nrngui.hoc") 
+//load_proc("nrnmainmenu")
+
+// ************************** Model specification *******************************
+proc params() {
+	// Geometrical properties
+	num_nodes = 51					// number of nodes [unitless]
+	node_diam = 8					// node diameter [um]
+	node_length = 1					// node length [um]
+	myelin_length = 100*node_diam	// internodal length [um]
+	
+	// Electrical properties
+	node_cm = 2					// specific membrane capacitance [uF/cm^2]
+	rhoa = 200					// intracellular resistivity [ohm-cm]
+	node_Rm = 1500				// specific membrane resistance [ohm-cm^2]
+	ap_thresh = 0 				// action potential threshold
+	
+	// Stimulus parameters
+	mydel = 5					// start at t=5ms [ms]
+	myamp = 1.0 				// amplitude [nA]
+	mydur = 0.1					// duration, aka pulsewidth [ms]
+	
+	// Temporal parameters
+	dt = 0.001					// [ms]
+	tstop = 10					// [ms]
+	num_timesteps = int(tstop/dt) + 1
+	
+	// Other parameters
+	v_init = -70				// [mV]
+	celsius = 6.3				// [deg C]
+}
+params()
+
+// ************************** Model initialization ******************************
+create axon[num_nodes]
+proc initialize() {local i
+	for i = 0, num_nodes - 1 {
+		axon[i] {
+			nseg 	= 1
+			diam 	= node_diam
+			L 		= node_length
+			Ra 		= rhoa * ((node_length+myelin_length)/node_length)
+			cm		= node_cm
+			
+			// Insert passive channel
+			insert hh
+			g_hh = 1/node_Rm // do we need to change this from g_pas -> g_hh?
+			
+		}
+	}
+	
+	for i = 0, num_nodes - 2 {
+		connect axon[i](1), axon[i+1](0)
+	}
+}
+initialize()
+
+// ************************** Instrumentation ***********************************
+// Intracellular stimulation
+objref stim
+proc int_stim() {
+	axon[int(num_nodes/2)] { // changed stimulus location to center of the axon (10 -> )
+		stim = new IClamp()
+		stim.loc(0.5) 			
+		stim.del = mydel
+		stim.amp = myamp
+		stim.dur = mydur
+	}
+}
+int_stim()
+
+// Record Vm(t) at all nodes
+objref Vm_vec[num_nodes], Istim_vec
+Istim_vec = new Vector(tstop/dt)
+for i = 0, num_nodes - 1 {
+	Vm_vec[i] = new Vector(num_timesteps,0)
+	Vm_vec[i].record(&axon[i].v(0.5),dt)
+}
+
+// add APCount object to node 20
+objref apc
+axon[19] apc = new APCount(0.5)
+
+// ************************** Simulation control ********************************
+proc stimul() {
+	finitialize(v_init)
+	while(t<tstop) {
+		fadvance()
+		Istim_vec.x[t/dt-1] = stim.i
+		if (stim.i > 1){
+			print stim.i
+		}
+	}
+}
+stimul()
+
+print "Check stimMax: apc.n = ",apc.n
+
+
+// ************************** Binary Search Algo ********************************
+stimMax = 1
+stimMin = 0
+
+func cutoff(){
+	return int($1*1000)/1000
+}
+
+proc iterative(){
+	count=0
+	while (1) {
+		thisStim = cutoff((stimMax-stimMin)/2+stimMin)
+		myamp = thisStim
+		int_stim()
+		stimul()
+
+		if (apc.n >= 1){
+			print "(apc.n >= 1) --> stimMax: ",stimMax,"to ",thisStim
+			stimMax = thisStim
+		} else if (apc.n < 1){
+			print "(apc.n < 1) --> stimMin: ",stimMin,"to ",thisStim
+			if (stimMin == thisStim) { print "Stimulus threshold = ",thisStim+0.001,"nA" }
+			stimMin = thisStim
+		}
+		count+=1
+		if (count>10){break}
+	}
+}
+iterative()
+
+// check that final choice is superthreshold
+myamp = thisStim+0.001
+int_stim()
+stimul()
+print "Final Check for stim=",myamp," apc.n=",apc.n
