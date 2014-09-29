@@ -3,11 +3,8 @@ load_file("nrngui.hoc")
 objref array
 
 func binarySearch(){
-	array = $1
-	value = $2
-
-	midIndex = round(array.size()/2)
-	midValue = array.x[midIndex]
+	print $1
+	return 0
 }
 
 func round(){
@@ -18,5 +15,22 @@ func round(){
 	}
 }
 
+objref v1
+proc createVector(){
+	startVal = $1
+	stopVal  = $2
+	stepVal  = $3
+	numel    = (stopVal-startVal)/stepVal
+	v1       = new Vector(numel+1)
+	v1.x[0]  = startVal
 
-for 
+	for i=1,numel{
+		v1.x[i] = v1.x[i-1]+stepVal
+	}
+}
+
+// Create list of numbers 0:0.1:10 to search from
+createVector(0,10,0.1)
+findValue = 4.3
+
+// 
