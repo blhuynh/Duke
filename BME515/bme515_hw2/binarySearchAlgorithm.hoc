@@ -1,0 +1,22 @@
+load_file("nrngui.hoc")	
+
+objref array
+
+func binarySearch(){
+	array = $1
+	value = $2
+
+	midIndex = round(array.size()/2)
+	midValue = array.x[midIndex]
+}
+
+func round(){
+	if ($1>0){
+		return int($1+0.5)
+	} else {
+		return int($1-0.5)
+	}
+}
+
+
+for 
