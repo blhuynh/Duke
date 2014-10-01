@@ -5,29 +5,29 @@
 proc params() {
 	// Geometrical properties
 	D = 8
-	num_nodes = 51					// number of nodes [unitless]
-	node_diam = D*0.7				// node diameter [um]
-	node_length = 1					// node length [um]
-	myelin_length = 100*D	// internodal length [um]
+	num_nodes = 51				// number of nodes [unitless]
+	node_diam = D*0.7			// node diameter [um]
+	node_length = 1				// node length [um]
+	myelin_length = 100*D		// internodal length [um]
 	
 	// Electrical properties
 	node_cm = 2					// specific membrane capacitance [uF/cm^2]
 	rhoa = 200					// intracellular resistivity [ohm-cm]
 	node_Rm = 1500				// specific membrane resistance [ohm-cm^2]
 	ap_thresh = 0 				// action potential threshold
-	
+
 	// Stimulus parameters
 	mydel = 5					// start at t=5ms [ms]
 	myamp = 1.0 				// amplitude [nA]
 	mydur = 0.1					// duration, aka pulsewidth [ms]
 	
 	// Temporal parameters
-	dt = 0.001					// [ms]
-	tstop = 10					// [ms]
+	dt = 0.01					// [ms]
+	tstop = 25					// [ms]
 	num_timesteps = int(tstop/dt) + 1
 	
 	// Other parameters
-	v_init = -70				// [mV]
+	v_init = -65				// [mV]
 	celsius = 6.3				// [deg C]
 }
 params()
@@ -45,7 +45,7 @@ proc initialize() {local i
 			
 			// Insert passive channel
 			insert hh
-			g_hh = 1/node_Rm // do we need to change this from g_pas -> g_hh?
+			// g_hh = 1/node_Rm // do we need to change this from g_pas -> g_hh?
 			
 		}
 	}
@@ -60,7 +60,7 @@ initialize()
 // Intracellular stimulation
 objref stim
 proc int_stim() {
-	axon[int(num_nodes/2-1)] { // changed stimulus location to center of the axon (10 -> 25)
+	axon[int(num_nodes/2)] { // changed stimulus location to center of the axon (10 -> 25)
 		stim = new IClamp()
 		stim.loc(0.5) 			
 		stim.del = mydel
@@ -81,7 +81,7 @@ for i = 0, num_nodes - 1 {
 // add APCount object to node 20
 objref apc
 axon[19] apc = new APCount(0.5)
-apc.thresh = 35
+apc.thresh = 20
 
 // ************************** Simulation control ********************************
 proc stimul() {
@@ -137,10 +137,10 @@ print "Final Check for stim=",myamp," apc.n=",apc.n
 
 // plot Vm(t) at 20th node
 objref g3
-proc plot_data_node20() {
+proc plot_data_node() {
 	g3 = new Graph()
 	g3.size(0, num_timesteps, -100, 150)
 	// Vm_vec[int(num_nodes/2)].plot(g1)
-	Vm_vec[19].plot(g3)
+	Vm_vec[$1-1].plot(g3)
 }
-plot_data_node20()
+plot_data_node(20)

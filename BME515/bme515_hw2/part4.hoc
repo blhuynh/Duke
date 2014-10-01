@@ -5,10 +5,10 @@
 proc params() {
 	// Geometrical properties
 	D = 8
-	num_nodes = 51					// number of nodes [unitless]
-	node_diam = D*0.7				// node diameter [um]
-	node_length = 1					// node length [um]
-	myelin_length = 100*D	// internodal length [um]
+	num_nodes = 51				// number of nodes [unitless]
+	node_diam = D*0.7			// node diameter [um]
+	node_length = 1				// node length [um]
+	myelin_length = 100*D		// internodal length [um]
 
 	// Electrical properties
 	node_cm = 2					// specific membrane capacitance [uF/cm^2]
@@ -23,12 +23,12 @@ proc params() {
 	mydur = 0.1					// duration, aka pulsewidth [ms]
 	
 	// Temporal parameters
-	dt = 0.001					// [ms]
-	tstop = 10					// [ms]
+	dt = 0.01					// [ms]
+	tstop = 25					// [ms]
 	num_timesteps = int(tstop/dt) + 1
 	
 	// Other parameters
-	v_init = -70				// [mV]
+	v_init = -65				// [mV]
 	celsius = 6.3				// [deg C]
 }
 params()
@@ -55,7 +55,7 @@ proc initialize() {local i
 			// Insert passive channel
 			insert hh
 			insert extracellular
-			g_hh = 1/node_Rm // do we need to change this from g_pas -> g_hh?
+			// g_hh = 1/node_Rm // do we need to change this from g_pas -> g_hh?
 			
 		}
 	}
@@ -89,7 +89,7 @@ for i = 0, num_nodes - 1 {
 // add APCount object to node 20
 objref apc
 axon[19] apc = new APCount(0.5)
-apc.thresh = 35
+apc.thresh = 20
 
 // distance from electrode to each node
 objref r_axon,xdist,ydist
@@ -100,13 +100,18 @@ proc create_r_axon(){
 
 	for i=0,num_nodes-1{
 		xdist.x[i] = 0.5 + abs(i-round(num_nodes/2-1))*(myelin_length+node_length/2)
+		if (i==25){
+			xdist.x[i] = 0
+		}
 	}
+
+	// xdist.printf()
 
 	xdist.pow(2)
 	ydist.pow(2)
 
 	for i=0,num_nodes-1{
-		r_axon.x[i] = sqrt(xdist.x[i]+ydist.x[i])
+		r_axon.x[i] = sqrt(xdist.x[i]+ydist.x[i])*1e-4 // um -> cm
 	}
 	// r_axon.printf()
 }
@@ -131,15 +136,21 @@ proc reset_e_extracellular(){
 }
 
 // ************************** Binary Search Algo ********************************
-stimMax = -10000
+stimMax = -10
 stimMin = 0
 
 stim.amp = stimMax
 stimul()
+while (apc.n == 0) {
+	print "No AP. stimMax=",stimMax
+	stimMax = 2*stimMax
+	stim.amp = stimMax
+	stimul()
+}
 print "Check stimMax=",stimMax,": apc.n = ",apc.n
 
 func cutoff(){
-	return int($1*100)/100
+	return int($1*1000)/1000
 }
 
 proc iterative(){
@@ -170,7 +181,7 @@ proc iterative(){
 iterative()
 
 // check that final choice is superthreshold
-stim.amp = thisStim-0.01
+stim.amp = thisStim-0.001
 stimul()
 print "Final Check for stim=",stim.amp," apc.n=",apc.n,"\n"
 
@@ -182,10 +193,10 @@ print "Final Check for stim=",stim.amp," apc.n=",apc.n,"\n"
 
 // plot Vm(t) at 20th node
 objref g3
-proc plot_data_node20() {
+proc plot_data_node() {
 	g3 = new Graph()
 	g3.size(0, num_timesteps, -100, 150)
 	// Vm_vec[int(num_nodes/2)].plot(g1)
-	Vm_vec[19].plot(g3)
+	Vm_vec[$1-1].plot(g3)
 }
-plot_data_node20()
+plot_data_node(45)

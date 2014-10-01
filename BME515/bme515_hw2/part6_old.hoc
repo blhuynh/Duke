@@ -9,7 +9,7 @@ proc params() {
 	node_diam = D*0.7			// node diameter [um]
 	node_length = 1				// node length [um]
 	myelin_length = 100*D		// internodal length [um]
-
+	
 	// Electrical properties
 	node_cm = 2					// specific membrane capacitance [uF/cm^2]
 	rhoa = 200					// intracellular resistivity [ohm-cm]
@@ -19,12 +19,12 @@ proc params() {
 	
 	// Stimulus parameters
 	mydel = 5					// start at t=5ms [ms]
-	myamp = -10.0 				// amplitude [nA]
+	myamp = -1.0 				// amplitude [nA]
 	mydur = 0.1					// duration, aka pulsewidth [ms]
 	
 	// Temporal parameters
-	dt = 0.01					// [ms]
-	tstop = 25					// [ms]
+	dt = 0.001					// [ms]
+	tstop = 10					// [ms]
 	num_timesteps = int(tstop/dt) + 1
 	
 	// Other parameters
@@ -55,7 +55,7 @@ proc initialize() {local i
 			// Insert passive channel
 			insert hh
 			insert extracellular
-			// g_hh = 1/node_Rm // do we need to change this from g_pas -> g_hh?
+			g_hh = 1/node_Rm // do we need to change this from g_pas -> g_hh?
 			
 		}
 	}
@@ -89,23 +89,18 @@ for i = 0, num_nodes - 1 {
 // add APCount object to node 20
 objref apc
 axon[19] apc = new APCount(0.5)
-apc.thresh = 20
+apc.thresh = 35
 
 // distance from electrode to each node
 objref r_axon,xdist,ydist
 proc create_r_axon(){
 	r_axon = new Vector(num_nodes,0)
 	xdist  = new Vector(num_nodes,0) 
-	ydist  = new Vector(num_nodes,1000) // 1 mm away
+	ydist  = new Vector(num_nodes,$1) // 1 mm away
 
 	for i=0,num_nodes-1{
 		xdist.x[i] = 0.5 + abs(i-round(num_nodes/2-1))*(myelin_length+node_length/2)
-		if (i==25){
-			xdist.x[i] = 0
-		}
 	}
-
-	// xdist.printf()
 
 	xdist.pow(2)
 	ydist.pow(2)
@@ -115,7 +110,6 @@ proc create_r_axon(){
 	}
 	// r_axon.printf()
 }
-create_r_axon()
 
 // ************************** Simulation control ********************************
 proc stimul() {
@@ -135,15 +129,25 @@ proc reset_e_extracellular(){
 	}
 }
 
-// create list of fiber diameters to evaluate
-objref fiberDlist
-minD = 1 	// [um]
-maxD = 15 	// [um]
-stepsize = 2 	// [um]
-fiberDlist = new Vector()
-fiberDlist.indgen(maxD,minD,-stepsize)
-
 // ************************** Binary Search Algo ********************************
+
+
+func cutoff(){
+	return int($1*100)/100
+}
+
+// create list of fiber diameters to evaluate
+objref distanceList
+distanceList = new Vector(7)
+distanceList.x[0] = 0.1e3
+distanceList.x[1] = 0.2e3
+distanceList.x[2] = 0.5e3
+distanceList.x[3] = 1e3
+distanceList.x[4] = 2e3
+distanceList.x[5] = 5e3
+distanceList.x[6] = 10e3
+
+
 proc iterative(){
 	count=0
 	while (count >= 0) {
@@ -158,7 +162,7 @@ proc iterative(){
 		} else if (apc.n < 1){
 			// print "(apc.n < 1) --> stimMin: ",stimMin,"to ",thisStim
 			if (stimMin == thisStim) { 
-				print "Stimulus threshold = ",thisStim-0.001,"nA" 
+				print "Stimulus threshold = ",thisStim-0.01,"nA" 
 				break
 			}
 			stimMin = thisStim
@@ -170,63 +174,44 @@ proc iterative(){
 	}
 }
 
-func cutoff(){
-	return int($1*1000)/1000
-}
-
-// file for saving istim thresholds
+// ************************** Threshold-Fiber Diameter Relationship ********************************
 objref f1
 f1=new File()
-f1.wopen("part5.txt")
+f1.wopen("part6.txt")
 f1.close()
-f1.aopen("part5.txt")
+f1.aopen("part6.txt")
 
-for ii=0,fiberDlist.size()-1 {
-	D = fiberDlist.x[ii]
-	node_diam = D*0.7			// node diameter [um]
-	myelin_length = 100*D		// internodal length [um]
+for ii=2,distanceList.size()-1 {
+	thisDist = distanceList.x[ii]
 
-	print "Fiber Diameter:",D,"um"
-	// update axon parameters and geometry
 	initialize()
-	create_r_axon()
+	create_r_axon(thisDist)
 
-	stimMax = -10
+	stimMax = -10000
 	stimMin = 0
-
-	// check starting maximum stimulus
 	stim.amp = stimMax
 	stimul()
+
 	while (apc.n == 0) {
 		print "No AP. stimMax=",stimMax
 		stimMax = 2*stimMax
 		stim.amp = stimMax
 		stimul()
 	}
-	print "Check stimMax=",stimMax,": apc.n = ",apc.n
 
-	// do binary search algo
+	print "fiberD=",D,"fiber-electrode distance=",thisDist,"um"
+	print "Check stimMax=",stim.amp,"nA: apc.n = ",apc.n
+
 	iterative()
 
 	// check that final choice is superthreshold
-	stim.amp = thisStim-0.001
+	stim.amp = thisStim-0.01
 	stimul()
-	print "Final Check for stim=",stim.amp," apc.n=",apc.n,"\n"
+	print "Final Check for stim=",stim.amp,"nA, apc.n=",apc.n,"\n"
 
-	// print thresholds to text file
 	if (apc.n==1) {
-		f1.printf("%g %g \n",D,stim.amp)
+		f1.printf("%g %g \n",thisDist,stim.amp)
 	}
 }
-f1.close()
 
-// ---- Debugging ----
-// plot Vm(t) at 20th node
-// objref g3
-// proc plot_data_node() {
-// 	g3 = new Graph()
-// 	g3.size(0, num_timesteps, -100, 150)
-// 	// Vm_vec[int(num_nodes/2)].plot(g1)
-// 	Vm_vec[$1-1].plot(g3)
-// }
-// plot_data_node(45)
+f1.close()
