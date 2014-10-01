@@ -162,7 +162,7 @@ proc iterative(){
 		} else if (apc.n < 1){
 			// print "(apc.n < 1) --> stimMin: ",stimMin,"to ",thisStim
 			if (stimMin == thisStim) { 
-				print "Stimulus threshold = ",thisStim-0.001,"nA" 
+				print "Stimulus threshold = ",thisStim-0.01,"nA" 
 				break
 			}
 			stimMin = thisStim
@@ -181,17 +181,24 @@ f1.wopen("part6.txt")
 f1.close()
 f1.aopen("part6.txt")
 
-for ii=3,distanceList.size()-1 {
+for ii=2,distanceList.size()-1 {
 	thisDist = distanceList.x[ii]
 
 	initialize()
 	create_r_axon(thisDist)
 
-	stimMax = -50000
+	stimMax = -10000
 	stimMin = 0
 	stim.amp = stimMax
-
 	stimul()
+
+	while (apc.n == 0) {
+		print "No AP. stimMax=",stimMax
+		stimMax = 2*stimMax
+		stim.amp = stimMax
+		stimul()
+	}
+
 	print "fiberD=",D,"fiber-electrode distance=",thisDist,"um"
 	print "Check stimMax=",stim.amp,"nA: apc.n = ",apc.n
 
