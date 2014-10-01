@@ -5,11 +5,11 @@
 proc params() {
 	// Geometrical properties
 	D = 8
-	num_nodes = 51					// number of nodes [unitless]
-	node_diam = D*0.7				// node diameter [um]
-	node_length = 1					// node length [um]
-	myelin_length = 100*D	// internodal length [um]
-
+	num_nodes = 51				// number of nodes [unitless]
+	node_diam = D*0.7			// node diameter [um]
+	node_length = 1				// node length [um]
+	myelin_length = 100*D		// internodal length [um]
+	
 	// Electrical properties
 	node_cm = 2					// specific membrane capacitance [uF/cm^2]
 	rhoa = 200					// intracellular resistivity [ohm-cm]
@@ -19,7 +19,7 @@ proc params() {
 	
 	// Stimulus parameters
 	mydel = 5					// start at t=5ms [ms]
-	myamp = -10.0 				// amplitude [nA]
+	myamp = -1.0 				// amplitude [nA]
 	mydur = 0.1					// duration, aka pulsewidth [ms]
 	
 	// Temporal parameters
@@ -110,7 +110,6 @@ proc create_r_axon(){
 	}
 	// r_axon.printf()
 }
-create_r_axon()
 
 // ************************** Simulation control ********************************
 proc stimul() {
@@ -131,16 +130,19 @@ proc reset_e_extracellular(){
 }
 
 // ************************** Binary Search Algo ********************************
-stimMax = -10000
-stimMin = 0
 
-stim.amp = stimMax
-stimul()
-print "Check stimMax=",stimMax,": apc.n = ",apc.n
 
 func cutoff(){
 	return int($1*100)/100
 }
+
+// create list of fiber diameters to evaluate
+objref fiberDlist
+minD = 1 	// [um]
+maxD = 15 	// [um]
+stepsize = 2 	// [um]
+fiberDlist = new Vector()
+fiberDlist.indgen(maxD,minD,-stepsize)
 
 proc iterative(){
 	count=0
@@ -167,25 +169,40 @@ proc iterative(){
 		reset_e_extracellular()
 	}
 }
-iterative()
 
-// check that final choice is superthreshold
-stim.amp = thisStim-0.01
-stimul()
-print "Final Check for stim=",stim.amp," apc.n=",apc.n,"\n"
+// ************************** Threshold-Fiber Diameter Relationship ********************************
+objref f1
+f1=new File()
+f1.wopen("part5.txt")
+f1.close()
+f1.aopen("part5.txt")
 
-// while (apc.n == 0 && myamp > -1){
-// 	myamp-=0.01
-// 	stimul()
-// 	print "myamp=",myamp,"apc.n=",apc.n
-// }
+for ii=0,fiberDlist.size()-1 {
+	fiberD = fiberDlist.x[ii] 	// fiber diameter [um]
+	node_diam = 0.7 * fiberD 	// node diameter [um]
+	myelin_length = 100*fiberD 	// length of myelin [um]
 
-// plot Vm(t) at 20th node
-objref g3
-proc plot_data_node20() {
-	g3 = new Graph()
-	g3.size(0, num_timesteps, -100, 150)
-	// Vm_vec[int(num_nodes/2)].plot(g1)
-	Vm_vec[19].plot(g3)
+	initialize()
+	create_r_axon()
+
+	stimMax = -10000
+	stimMin = 0
+	stim.amp = stimMax
+
+	stimul()
+	print "fiberD=",fiberD
+	print "Check stimMax=",stim.amp,"nA: apc.n = ",apc.n
+
+	iterative()
+
+	// check that final choice is superthreshold
+	stim.amp = thisStim-0.01
+	stimul()
+	print "Final Check for stim=",stim.amp,"nA, apc.n=",apc.n,"\n"
+
+	if (apc.n==1) {
+		f1.printf("%g %g \n",fiberD,stim.amp)
+	}
 }
-plot_data_node20()
+
+f1.close()

@@ -1,0 +1,11 @@
+load_file("nrngui.hoc")
+func test(){
+	count = $1
+	if (count == 2){
+		print "count=",count
+		break
+	}
+	test(count+1)
+}
+
+test(1)

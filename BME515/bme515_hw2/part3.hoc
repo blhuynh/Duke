@@ -4,10 +4,11 @@
 // ************************** Model specification *******************************
 proc params() {
 	// Geometrical properties
+	D = 8
 	num_nodes = 51					// number of nodes [unitless]
-	node_diam = 8					// node diameter [um]
+	node_diam = D*0.7				// node diameter [um]
 	node_length = 1					// node length [um]
-	myelin_length = 100*node_diam	// internodal length [um]
+	myelin_length = 100*D	// internodal length [um]
 	
 	// Electrical properties
 	node_cm = 2					// specific membrane capacitance [uF/cm^2]
@@ -59,7 +60,7 @@ initialize()
 // Intracellular stimulation
 objref stim
 proc int_stim() {
-	axon[int(num_nodes/2)] { // changed stimulus location to center of the axon (10 -> )
+	axon[int(num_nodes/2-1)] { // changed stimulus location to center of the axon (10 -> 25)
 		stim = new IClamp()
 		stim.loc(0.5) 			
 		stim.del = mydel
@@ -80,6 +81,7 @@ for i = 0, num_nodes - 1 {
 // add APCount object to node 20
 objref apc
 axon[19] apc = new APCount(0.5)
+apc.thresh = 35
 
 // ************************** Simulation control ********************************
 proc stimul() {
@@ -132,3 +134,13 @@ myamp = thisStim+0.001
 int_stim()
 stimul()
 print "Final Check for stim=",myamp," apc.n=",apc.n
+
+// plot Vm(t) at 20th node
+objref g3
+proc plot_data_node20() {
+	g3 = new Graph()
+	g3.size(0, num_timesteps, -100, 150)
+	// Vm_vec[int(num_nodes/2)].plot(g1)
+	Vm_vec[19].plot(g3)
+}
+plot_data_node20()
