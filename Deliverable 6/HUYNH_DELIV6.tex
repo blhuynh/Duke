@@ -1,0 +1,62 @@
+\documentclass[10pt]{article}
+
+\usepackage{amsmath}    % load AMS-Math package
+\usepackage{amsfonts}
+\usepackage{epsfig}     % allows PostScript files
+\usepackage{graphics}   % allows graphics and pictures
+\usepackage{textpos}   	% allows graphics to be placed anywhere
+\usepackage{listings}   % allows lstlisting environment
+\usepackage{moreverb}   % allows listinginput environment
+\usepackage{vmargin}    % allows better margins
+\usepackage{multicol}	% allows for multiple columns
+\usepackage{array} 		% allows for paragraph column alignment
+\usepackage{booktabs}  	% allows for thickened table lines
+\usepackage{chngpage} 	% allows for temporary adjustment of side margins
+\usepackage[font=small,labelfont=bf]{caption} % allows for smaller caption text
+\usepackage{multirow}	% allows for text to span multiple rows
+\usepackage{subfigure}
+\usepackage[nottoc,notlof,notlot,numbib]{tocbibind}
+\usepackage{hyperref}
+\usepackage{enumitem}
+\setpapersize{USletter} % sets the paper size
+\setmarginsrb{1in}{0.5in}{1in}{0.2in}{12pt}{11mm}{0pt}{11mm} %sets margins 
+
+\begin{document}
+
+\begin{center}
+\textbf{\huge Project 1 - Deliverable 6}
+\rule{6.5in}{0.5mm}
+\textbf{Brian Huynh \\ BME 503 \\ October 10th, 2014}\\
+\emph{I have adhered to the Duke Community Standard in completing this assignment.}
+\end{center}
+
+\tableofcontents
+\listoffigures
+\pagebreak
+
+\section{Deliverable 6}
+A differential steering system was implemented into the bug to drive movement towards the food. The sensory inputs were based on the magnitude of the distance between the bug and the food. The sensory inputs were fed into \texttt{brain\_avoid.m} where they were converted into spiking outputs. These spiking outputs were then applied to the left and right motor velocities given that
+\begin{align}
+\frac{dv_L}{dt} &= -\frac{v_L + v_{max}*motor_L}{\tau_{motor_L}} \\
+\frac{dv_R}{dt} &= -\frac{v_R + v_{max}*motor_R}{\tau_{motor_R}}
+\end{align}
+where $v_{max}$ was a scalar for the maximum velocity, $motor_L$ and $motor_R$ were a binary output of whether a spike had occurred or not, and $\tau$ was the decay rate of the increase in velocity due to a spike. \\
+
+\noindent The x- and y-direction as well as the heading angle were also modified using the following differential equations: 
+\begin{align}
+v &= \frac{1}{2}(v_L + v_R) \\
+\frac{dx}{dt} &= -v * \text{cos}(\theta)*dt \\
+\frac{dy}{dt} &= -v * \text{sin}(\theta)*dt 
+\end{align}
+
+\pagebreak
+\section{Code and Outputs}
+\subsection{bugnetworkmodel.m}
+\listinginput[1]{1}{bugnetworkmodel.m}
+\pagebreak
+
+\subsection{brain\_avoid.m}
+\listinginput[1]{1}{brain_avoid.m}
+\pagebreak
+
+\end{document}
