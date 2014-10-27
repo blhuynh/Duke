@@ -1,0 +1,189 @@
+// BME 515 HW 3 Part 2 - Conduction Speed
+// 30-Oct-2014 (blh19)
+
+// ************************** Model specification *******************************
+D = 8
+proc params() {
+	// Geometrical properties
+	num_nodes = 51				// number of nodes [unitless]
+	node_diam = D*0.7			// node diameter [um]
+	node_length = 1				// node length [um]
+	myelin_length = 100*D		// internodal length [um]
+
+	// Electrical properties
+	node_cm = 2					// specific membrane capacitance [uF/cm^2]
+	rhoa = 200					// intracellular resistivity [ohm-cm]
+	rhoe = 1000					// extracellular resistivity [ohm-cm]
+	node_Rm = 1500				// specific membrane resistance [ohm-cm^2]
+	ap_thresh = 0 				// action potential threshold
+	
+	// Stimulus parameters
+	mydel = 1					// start at t=5ms [ms]
+	myamp = -10.0 				// amplitude [nA]
+	mydur = 0.1					// duration, aka pulsewidth [ms]
+	
+	// Temporal parameters
+	dt = 0.02					// [ms]
+	tstop = 10					// [ms]
+	num_timesteps = int(tstop/dt) + 1
+	
+	// Other parameters
+	v_init = -65				// [mV]
+	celsius = 6.3				// [deg C]
+}
+params()
+
+func round(){
+	if ($1>0){
+		return int($1+0.5)
+	} else {
+		return int($1-0.5)
+	}
+}
+                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                              
+func cutoff(){
+	return int($1*1000)/1000
+}
+
+// ************************** Model initialization ******************************
+create axon[num_nodes]
+proc initialize() {local i
+	for i = 0, num_nodes - 1 {
+		axon[i] {
+			nseg 	= 1
+			diam 	= node_diam
+			L 		= node_length
+			Ra 		= rhoa * ((node_length+myelin_length)/node_length)
+			cm		= node_cm
+			
+			insert hh
+			insert extracellular
+			insert leak			
+		}
+	}
+	
+	for i = 0, num_nodes - 2 {
+		connect axon[i](1), axon[i+1](0)
+	}
+}
+initialize()
+
+// ************************** Instrumentation ***********************************
+// Extracellular stimulation
+objref stim
+create dummy
+dummy {
+	stim = new IClamp()
+	stim.loc(0.5)
+	stim.del = mydel	// [ms]
+	stim.amp = myamp	// [nA]
+	stim.dur = mydur 	// [ms]
+}
+
+// Record Vm(t) at all nodes
+objref Vm_vec[num_nodes], Istim_vec
+Istim_vec = new Vector(tstop/dt)
+for i = 0, num_nodes - 1 {
+	Vm_vec[i] = new Vector(num_timesteps,0)
+	Vm_vec[i].record(&axon[i].v(0.5),dt)
+}
+
+// add APCount object to last node
+objref apc
+axon[num_nodes-1] apc = new APCount(0.5)
+apc.thresh = 20
+
+// add NetCon objects to monitor spike times
+objref nc[num_nodes], spiketimes[num_nodes], nil
+for i=0,num_nodes-1{
+
+	// nil (NULLObject) -> NetCon is always inactive
+	// useful for recording the spike train from the output cell
+
+	axon[i] nc[i] = new NetCon(&v(0.5),nil)
+	nc.threshold = apc.thresh
+	spiketimes[i] = new Vector()
+	nc[i].record(spiketimes[i])
+}
+
+// distance from electrode to each node
+objref r_axon,xdist,ydist
+proc create_r_axon(){
+	r_axon = new Vector(num_nodes,0)
+	xdist  = new Vector(num_nodes,0) 
+	ydist  = new Vector(num_nodes,1000) // 1 mm away
+	
+	// stimulation electrode is above node 1
+	xloc = 1
+	xdist.x[0] = node_length/2
+	xdist.x[1] = node_length/2
+	for i=xloc+1,num_nodes-1{
+		xdist.x[i] = xdist.x[i-1] + (myelin_length+node_length/2)
+	}
+
+	xdist.pow(2)
+	ydist.pow(2)
+
+	for i=0,num_nodes-1{
+		r_axon.x[i] = sqrt(xdist.x[i]+ydist.x[i])*1e-4 // um -> cm
+	}
+}
+create_r_axon()
+
+// ************************** Simulation control ********************************
+proc stimul() {
+	finitialize(v_init)
+	while(t<tstop) {
+		for i=0,num_nodes-1{
+			axon[i].e_extracellular = rhoe * stim.i/(4*PI*r_axon.x[i])
+		}
+		fadvance()
+	}
+}
+
+// ************************** Run Simulation ********************************
+// create list of fiber diameters to evaluate
+objref fiberDlist
+minD = 2 	// [um]
+maxD = 20 	// [um]
+stepsize = 2 	// [um]
+fiberDlist = new Vector()
+fiberDlist.indgen(maxD,minD,-stepsize)
+
+// file for saving conduction velocity
+objref f1
+f1=new File()
+f1.wopen("part2.txt")
+f1.close()
+f1.aopen("part2.txt")
+
+for k=0,fiberDlist.size()-1{
+	D = fiberDlist.x[k]
+	params()
+	print "Fiber Diameter = ",D,"um"
+	initialize()
+	create_r_axon()
+
+	// check that there is an AP
+	stimMax = -2
+	stimul()
+
+	count = 0
+	while (apc.n == 0 && count < 10) {
+		print "No AP. stimMax=",stimMax
+		stimMax = 2*stimMax
+		stim.amp = stimMax
+		stimul()
+		count+=1
+	}
+	print "stim.amp=",stim.amp," apc.n=",apc.n,"\n"
+
+	node1 = 49
+	node2 = 10
+	n = node1-node2
+	cv = ( n*(myelin_length+node_length) / (spiketimes[49].x[0] - spiketimes[10].x[0]) * 1e-3)
+
+	print "Conduction Velocity: ",cv,"m/s"
+	f1.printf("%g %g \n",D,cv)
+}
+f1.close()

@@ -1,0 +1,145 @@
+//load_file("nrngui.hoc") 
+//load_proc("nrnmainmenu")
+
+// ************************** Model specification *******************************
+proc params() {
+	// Geometrical properties
+	num_nodes = 51				// number of nodes [unitless]
+	node_diam = 5.6				// node diameter [um]
+	node_length = 1				// node length [um]
+	myelin_length = 800			// internodal length [um]
+	
+	// Electrical properties
+	node_cm = 2					// specific membrane capacitance [uF/cm^2]
+	rhoa = 200					// intracellular resistivity [ohm-cm]
+	//node_Rm = 1000				// specific membrane resistance [ohm-cm^2]
+	v_init = -65				// [mV]
+	ap_thresh = -20				// [mV]
+	
+	// Stimulus parameters
+	mydel = 5					// start at t=5ms [ms]
+	myamp = 0.5					// amplitude [nA]
+	mydur = 0.1					// duration, aka pulsewidth [ms]
+	
+	// Finding threshold
+	lower_bound = 0				// [nA]
+	upper_bound = 10			// [nA]
+	resolution = 0.01			// [nA]
+	
+	// Temporal parameters
+	dt = 0.001					// [ms]
+	tstop = 15					// [ms]
+	num_timesteps = int(tstop/dt) + 1
+	
+	// Other parameters
+	celsius = 6.3				// [deg C]
+}
+params()
+
+// ************************** Model initialization ******************************
+create axon[num_nodes]
+proc initialize() {local i
+	for i = 0, num_nodes - 1 {
+		axon[i] {
+			nseg 	= 1
+			diam 	= node_diam
+			L 		= node_length
+			Ra 		= rhoa * ((node_length+myelin_length)/node_length)
+			cm		= node_cm
+			
+			// Insert HH channels
+			insert hh
+		}
+	}
+	
+	for i = 0, num_nodes - 2 {
+		connect axon[i](1), axon[i+1](0)
+	}
+}
+initialize()
+
+// ************************** Instrumentation ***********************************
+// Intracellular stimulation
+objref stim
+proc int_stim() {
+	axon[int(num_nodes/2)] {
+		stim = new IClamp()
+		stim.loc(0.5)
+		stim.del = mydel
+		stim.amp = myamp
+		stim.dur = mydur
+	}
+}
+int_stim()
+
+// Record Vm(t) at all nodes
+objref Vm_vec[num_nodes]
+for i = 0, num_nodes - 1 {
+	Vm_vec[i] = new Vector(num_timesteps,0)
+	Vm_vec[i].record(&axon[i].v(0.5),dt)
+}
+
+// Record the stimulus current
+objref stim_vec
+stim_vec = new Vector(num_timesteps,0)
+stim_vec.record(&stim.i,dt)
+
+// Check for AP's
+objref apc
+axon[19] apc = new APCount(0.5)
+apc.thresh = ap_thresh	
+
+// ************************** Simulation control ********************************
+proc stimul() {
+	stim.amp = $1
+	finitialize(v_init)
+	while(t<tstop) {
+		fadvance()
+	}
+}
+//stimul()
+
+// ************************** Find threshold ************************************
+proc find_thresh() {
+	stimul(upper_bound)
+	
+	if (apc.n == 0) {
+		print "ERROR: Initial istim_top value does not elicit an AP - need to increase its magnitude"
+		return 0
+	} else {
+		while(1) {
+			new_guess = (lower_bound + upper_bound) / 2
+			stimul(new_guess)
+			print new_guess, apc.n
+			
+			if ( (upper_bound - lower_bound) < resolution ) {
+				if (apc.n == 0) {
+					new_guess = last_guess
+					stimul(last_guess)		// for plotting
+				}
+				print "Done searching! thresh = ", new_guess, "nA"
+				break
+			} else if (apc.n >= 1) {
+				last_guess = upper_bound
+				upper_bound = new_guess
+			} else if (apc.n == 0) {
+				lower_bound = new_guess
+			}
+		}
+	}
+}
+find_thresh()
+
+// ************************** Data analysis & output ****************************
+// Plot Vm(t) at the axon's center
+objref g1, g2
+proc plot_data() {
+	g1 = new Graph()
+	g1.size(0, num_timesteps, -100, 100)
+	Vm_vec[44].plot(g1)
+	
+	g2 = new Graph()
+	g2.size(0, num_timesteps, 0, 1)
+	stim_vec.plot(g2)
+}
+plot_data()

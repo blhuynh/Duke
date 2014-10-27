@@ -1,0 +1,24 @@
+/*
+Nikki Pelot
+BME 515, Fall 2014, HW1
+Part 1, Binary search algorithm
+*/
+
+// Parameters
+A = 4.3
+lower_bound = 0		// [0.5 pt]
+upper_bound = 10	// [0.5 pt]
+resolution = 0.1	// [0.5 pt]
+
+// Binary search algorithm [2.5 pts]
+while(1) {
+	new_guess = (lower_bound + upper_bound) / 2
+	if ( (upper_bound - lower_bound) < resolution ) {
+		print "Done searching! A = ", new_guess
+		break
+	} else if (new_guess > A) {
+		upper_bound = new_guess
+	} else if (new_guess <= A) {
+		lower_bound = new_guess
+	}
+}
