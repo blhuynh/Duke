@@ -40,7 +40,7 @@ ylabel('I_m (mA)')
 title('Transmembrane Current')
 legend(lgd,'Location','NW')
 axis tight
-setfont(24)
+setfont(18)
 print -dpng bme515_hw3_part1c
 
 %% Peak Positive Current
@@ -60,6 +60,6 @@ legend('Data','Fit','Location','NW')
 xlabel('Fiber Diameter (um)')
 ylabel('I_m (mA)')
 title({'Peak Positive Current';trendline;stats})
-setfont(24)
+setfont(18)
 
 print -dpng bme515_hw3_part1d

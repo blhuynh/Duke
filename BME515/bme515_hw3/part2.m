@@ -28,6 +28,6 @@ legend('Data','Fit','Location','NW')
 title({'Conduction Velocity for Varying Fiber Diameters',trendline,stats})
 xlabel('Fiber Diameter (\mum)')
 ylabel('Conduction Velocity (m/s)')
-setfont(24)
+setfont(18)
 
 print -dpng bme515_hw3_part2
