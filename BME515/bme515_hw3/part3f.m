@@ -165,7 +165,8 @@ if true
     plot(tvec,Vnet(:,1),'k')
     plot(tvec,Vnet(:,2),'b')
     plot(tvec,Vnet(:,3),'r')
-    title(sprintf('Recording at %gmm (k=%gmm)',xrec*1e-3,ks(ii)*1e-3))
+    legend('k=10mm','k=25mm','k=50mm')
+    title(sprintf('Tripole Recording Electrode at %gmm',xrec*1e-3))
     xlabel('Time (ms)'); ylabel({'Net Recorded','Voltage (V)'}); setfont(18)
 
     print('-dpng','bme515_hw3_part3Bf')
