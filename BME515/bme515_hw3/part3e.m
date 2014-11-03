@@ -89,7 +89,8 @@ for ii = 1:length(xrecs)
     Vsum = zeros(numel(tvec),noelecs);
     
     % select axon
-    for axno=1:noaxons*2
+%     for axno=1:noaxons
+    for axno=noaxons+1:2*noaxons
         
         % axon-dependent parameters
         D     = dist(axno);
@@ -151,6 +152,10 @@ for ii = 1:length(xrecs)
     Vnet(:,ii) = Vsum(:,2) - (Vsum(:,1)+Vsum(:,3))/2;
 end
 
+%% conduction velocity 
+[y,i] = max(Vnet); % y is peak voltage and i is index
+ECAP_CV = diff(xrecs)/abs(diff(tvec(i))); % um/ms
+fprintf(sprintf('CV of ECAP = %g m/s \n',ECAP_CV*1e-3))
 
 %% plot phi lines (debugging)
 if false
@@ -178,7 +183,7 @@ if false
     plot(tvec,Vnet(:,2),'k')
     title(sprintf('Tripole Recording Electrode at %gmm',xrecs(2)*1e-3))
     xlabel('Time (ms)'); ylabel({'Net Recorded','Voltage (V)'}); setfont(18)
-    print('-dpng','bme515_hw3_part3Bd')
+%     print('-dpng','bme515_hw3_part3Bd')
 end
 
 % print('-dpng','bme515_hw3_part3Bd')

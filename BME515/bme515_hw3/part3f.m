@@ -80,16 +80,17 @@ dt = 0.02; % (ms)
 tvec = 0:dt:tstop-dt;
 
 %% create AP Im profile
-xrecs = [15 50] * 1e3;
+ks = [10 25 50] * 1e3;
 
-for ii = 1:length(xrecs)
-    xrec = xrecs(ii);
+for ii = 1:length(ks)
+    k = ks(ii);
     
     % summed voltage for each tripole contact for all time (no_tpts x noelecs)
     Vsum = zeros(numel(tvec),noelecs);
     
     % select axon
-    for axno=1:noaxons*2
+    %     for axno=1:noaxons
+    for axno=noaxons+1:2*noaxons
         
         % axon-dependent parameters
         D     = dist(axno);
@@ -151,37 +152,24 @@ for ii = 1:length(xrecs)
     Vnet(:,ii) = Vsum(:,2) - (Vsum(:,1)+Vsum(:,3))/2;
 end
 
-
 %% plot phi lines (debugging)
-if false
+if true
     figure; hold on
-    subplot(2,1,1); hold on
-    plot(tvec,Vsum(:,1),'k')
-    plot(tvec,Vsum(:,2),'b')
-    plot(tvec,Vsum(:,3),'g')
-    setfont
-    
-    subplot(2,1,2); hold on
-    plot(tvec,Vnet,'k')
-    setfont
-end
+%     for ii = 1:numel(ks)
+%         subplot(3,1,ii); hold on
+%         plot(tvec,Vnet(:,ii),'k')
+%         title(sprintf('Recording at %gmm (k=%gmm)',xrec*1e-3,ks(ii)*1e-3))
+%         xlabel('Time (ms)'); ylabel({'Net Recorded','Voltage (V)'}); setfont(18)
+%     end
 
-
-if false
-    figure; clf; hold on
-    subplot(2,1,1)
     plot(tvec,Vnet(:,1),'k')
-    title(sprintf('Tripole Recording Electrode at %gmm',xrecs(1)*1e-3))
+    plot(tvec,Vnet(:,2),'b')
+    plot(tvec,Vnet(:,3),'r')
+    title(sprintf('Recording at %gmm (k=%gmm)',xrec*1e-3,ks(ii)*1e-3))
     xlabel('Time (ms)'); ylabel({'Net Recorded','Voltage (V)'}); setfont(18)
-    
-    subplot(2,1,2)
-    plot(tvec,Vnet(:,2),'k')
-    title(sprintf('Tripole Recording Electrode at %gmm',xrecs(2)*1e-3))
-    xlabel('Time (ms)'); ylabel({'Net Recorded','Voltage (V)'}); setfont(18)
-    print('-dpng','bme515_hw3_part3Bd')
-end
 
-% print('-dpng','bme515_hw3_part3Bd')
+    print('-dpng','bme515_hw3_part3Bf')
+end
 
 %% timing
 toc
