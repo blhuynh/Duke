@@ -34,4 +34,4 @@ xlabel('Time (ms)')
 ylabel('Current (mA)')
 setfont(18)
 
-print -dpng bme515_hw3_part1a
+% print -dpng bme515_hw3_part1a

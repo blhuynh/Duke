@@ -167,7 +167,7 @@ if false
 end
 
 
-if false
+if true
     figure; clf; hold on
     subplot(2,1,1)
     plot(tvec,Vnet(:,1),'k')
@@ -178,10 +178,8 @@ if false
     plot(tvec,Vnet(:,2),'k')
     title(sprintf('Tripole Recording Electrode at %gmm',xrecs(2)*1e-3))
     xlabel('Time (ms)'); ylabel({'Net Recorded','Voltage (V)'}); setfont(18)
-    print('-dpng','bme515_hw3_part3Bd')
+%     print('-dpng','bme515_hw3_part3Bd')
 end
-
-% print('-dpng','bme515_hw3_part3Bd')
 
 %% timing
 toc

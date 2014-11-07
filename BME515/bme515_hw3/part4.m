@@ -1,6 +1,7 @@
 % BME 515 HW 3 Part 4 - Electroneurogram (ENG)
 % 30-Oct-2014 (blh19)
 clear; clc; format short g
+addpath Data
 
 %% 4a. Histogram of Firing Rates
 % uniform distribution between 10-20 Hz
@@ -78,7 +79,7 @@ nodist = 2;
 %% time parameters
 tdel = 1;
 pw = 1;
-tstop = 150; % (ms)
+tstop = 500; % (ms)
 dt = 0.02; % (ms)
 tvec = 0:dt:tstop-dt;
 
@@ -155,7 +156,7 @@ for var1 = 1:2
         % calculate phi for all nodes at all time points for a single axon
         % phi should be (noelecs x nonodes x no_tpts)
         %     potential = @(Im,rdist) 4*pi*Re.*rdist.*Im/1e4;
-        potential = @(Im,rdist) Im*Re ./ (1e4*4*pi.*rdist);
+        potential = @(Im,rdist) Im*Re*1e4 ./ (4*pi.*rdist);
         for a=1:noelecs
             thisDist = r(:,a);
             phi{a,1} = bsxfun(potential,Im_allnodes,thisDist')';
@@ -169,7 +170,6 @@ for var1 = 1:2
     Vnet(var1,:) = Vsum(:,2) - (Vsum(:,1)+Vsum(:,3))/2;
 end
 
-
 %% debugging
 figure(1); clf; hold on
 subplot(2,1,1); hold on
@@ -182,4 +182,4 @@ plot(tvec,Vnet(2,:),'k')
 
 title('Electroneurogram (Population 2)')
 xlabel('Time (ms)'); ylabel({'Net Recorded','Voltage (V)'}); setfont(18)
-print('-dpng','bme515_hw3_part4_2')
+% print('-dpng','bme515_hw3_part4_2')
