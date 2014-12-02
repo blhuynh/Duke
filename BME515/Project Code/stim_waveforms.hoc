@@ -1,0 +1,91 @@
+func rectstim(){local tt, tdel, durtrain, pw, freq
+	tt 		 = $1 // $1 = t, current time point (ms)
+	tdel 	 = $2 // $2 = tdel, time delay before train (ms)
+	durtrain = $3 // $3 = durtrain, duration of train (ms)
+	pw		 = $4 // $4 = pulse width of rectangular waveform (ms)
+	freq 	 = $5 // $5 = frequency of stimulation
+
+	// check if PW is valid input
+	maxPW = 1e3/(freq*2)
+	if (pw > maxPW) {return false}
+
+	if (tt <= tdel + durtrain && tt >= tdel) {
+		
+		if(freq==0) {
+			y=1
+		} else {
+		
+			pulsenum=int( ((tt-tdel)*1e-3)*freq ) // pulse number
+			tp_o=tdel+pulsenum*(1e3/freq) // start time of pulse
+
+			if(tt>=(tp_o+0)&& tt<(tp_o+pw)) {// primary phase
+				y=1
+			} else {
+				if(tt>=(tp_o+pw) && tt<=(tp_o+2*pw)){//secondary phase
+					y=-1
+				} else {//interpulse phase
+					y=0
+				}
+			}
+			
+		}
+		
+	} else {//after delay or after train    
+		y=0
+	}
+
+	return y
+
+}
+
+func monostim(){local tt, tdel, durtrain, pw, freq
+	tt 		 = $1 // $1 = t, current time point
+	tdel 	 = $2 // $2 = tdel, time delay before train
+	durtrain = $3 // $3 = durtrain, duration of train
+	pw		 = $4 // $4 = pulse width of rectangular waveform
+	freq 	 = $5 // $5 = frequency of stimulation
+
+	if (tt<=tdel+durtrain && tt>=tdel) {
+		pulsenum=int(((tt-tdel)*1e-3)*freq)
+		tp_o=tdel+pulsenum*(1e3/freq)
+		if (tt>=tp_o && tt<tp_o+pw) { y=1 
+		} else { y=0 }
+	} else { y=0 }
+	return y
+}
+
+func biasymstim(){local tt, tdel, durtrain, pw, freq
+	tt 		 = $1 // $1 = t, current time point
+	tdel 	 = $2 // $2 = tdel, time delay before train
+	durtrain = $3 // $3 = durtrain, duration of train
+	pw		 = $4 // $4 = pulse width of rectangular waveform
+	freq 	 = $5 // $5 = frequency of stimulation
+
+	if (tt<=tdel+durtrain && tt>=tdel) {
+		pulsenum=int(((tt-tdel)*1e-3)*freq)
+		tp_o=tdel+pulsenum*(1e3/freq)
+		if (tt>=tp_o && tt<tp_o+pw) { y=1 
+		} else {
+			y=-1*pw/(1e3/freq - pw)
+		}
+	} else { y=0 }
+	return y
+}
+
+
+func sinestim(){local tt, tdel, durtrain, freq
+	tt 		 = $1 // $1 = t, current time point
+	tdel 	 = $2 // $2 = tdel, time delay before train
+	durtrain = $3 // $3 = durtrain, duration of train
+	freq 	 = $4 // $4 = frequency of stimulation
+
+	if (t <= tdel + durtrain && t >= tdel) {
+	    w=2*PI*(freq*1e-3)
+	    y=sin(w*(t-tdel))
+	} else {// after delay or after train    
+	    y=0
+	}
+
+	return y
+
+}

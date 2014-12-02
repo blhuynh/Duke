@@ -1,0 +1,249 @@
+//load_file("nrngui.hoc") 
+//load_proc("nrnmainmenu")
+
+// ************************** Model specification *******************************
+// Specific fiber sizes to test [um]
+num_Dvalues = 10
+objref D_vec
+D_vec = new Vector(num_Dvalues,0)
+D_vec.x[0] = 2
+for i = 1, num_Dvalues-1 {
+	D_vec.x[i] = D_vec.x[i-1] + 2
+}
+
+proc params() {
+	// Geometrical properties
+	num_nodes = 51				// number of nodes [unitless]
+	D = $1						// myelin diameter [um]
+	node_diam = 0.7*D			// node diameter [um]
+	node_length = 1				// node length [um]
+	myelin_length = 100*D		// internodal length [um]
+	
+	// Electrical properties
+	node_cm = 2					// specific membrane capacitance [uF/cm^2]
+	rhoa = 200					// intracellular resistivity [ohm-cm]
+	rhoe = 1000					// extracellular resistivity [ohm-cm]
+	v_init = -65				// [mV]
+	ap_thresh = -20				// [mV]
+	
+	// Stimulus parameters
+	mydel = 5						// start at t=5ms [ms]
+	myamp = 0.5						// amplitude [mA]
+	mydur = 0.1						// duration, aka pulsewidth [ms]
+	z_stim = 1000					// electrode-fiber distance[um]
+	x_stim_ind = 5					// index of electrode location along the axon
+	
+	// Recording parameters
+	checknode = 48					// index where I'll record the transmembrane current
+	
+	// Finding threshold
+	lower_bound_init = 0			// [mA]
+	upper_bound_init = -10			// [mA]
+	resolution = 0.001				// [mA]
+	
+	// Temporal parameters
+	dt = 0.02//0.001					// [ms]
+	tstop = 50					// [ms]
+	num_timesteps = int(tstop/dt) + 1
+	
+	// Other parameters
+	celsius = 6.3				// [deg C]
+}
+//params()
+
+// ************************** Model initialization ******************************
+create axon[1]
+
+// Coordinates of nodes along the axon
+objref x_axon
+
+proc initialize() {local i
+	create axon[num_nodes]
+	x_axon = new Vector(num_nodes,0)
+	
+	for i = 0, num_nodes - 1 {
+		axon[i] {
+			nseg 	= 1
+			diam 	= node_diam
+			L 		= node_length
+			Ra 		= rhoa * ((node_length+myelin_length)/node_length)
+			cm		= node_cm
+			
+			// Insert HH channels
+			insert hh
+			
+			// Insert extracellular mechanism
+			insert extracellular
+		}
+	}
+	
+	for i = 0, num_nodes - 2 {
+		connect axon[i](1), axon[i+1](0)
+	}
+	
+	x_axon.x[0] = node_length/2
+	for i = 1, num_nodes - 1 {
+		x_axon.x[i] = x_axon.x[i-1] + myelin_length		// [um]
+	}
+	x_stim = x_axon.x[x_stim_ind]					// [um]
+}
+//initialize()
+
+// ************************** Instrumentation ***********************************
+
+// Intracellular stimulation
+objref stim
+create myelec
+proc ext_stim() {
+	myelec {
+		stim = new IClamp()
+		stim.loc(0.5)
+		stim.del = mydel
+		stim.amp = myamp
+		stim.dur = mydur
+	}
+}
+//ext_stim()
+
+objref Vm_vec[1]
+objref stim_vec
+objref apc
+objref Im_vec
+proc recording() {
+	// Record Vm(t) at all nodes
+	objref Vm_vec[num_nodes]
+	for i = 0, num_nodes - 1 {
+		Vm_vec[i] = new Vector(num_timesteps,0)
+		Vm_vec[i].record(&axon[i].v(0.5),dt)
+	}
+
+	// Record the stimulus current
+	stim_vec = new Vector(num_timesteps,0) 
+	stim_vec.record(&stim.i,dt)
+
+	// Check for AP's
+	axon[19] apc = new APCount(0.5)
+	apc.thresh = ap_thresh	
+	
+	// Record the transmembrane current at checknode
+	Im_vec = new Vector(num_timesteps,0)
+	Im_vec.record(&axon[checknode].i_membrane(0.5))
+}
+//recording()
+
+// ************************** Simulation control ********************************
+proc stimul() {
+	stim.amp = $1
+	finitialize(v_init)
+	
+	for i = 0, num_nodes - 1 {
+		axon[i].e_extracellular = 0
+	}
+	
+	while(t<tstop) {
+		for i = 0, num_nodes-1 {
+			// Units: Need e_extracellular in mV
+			// Take stim.i in mA; yes, technically point sources are in nA in NEURON,
+			// but here, stim.i is only used in this equation, 
+			// so we can take the most convenient units for our purposes.
+			// ohm*cm*mA/(um)
+			// So multiply by 10000 um/cm to convert to mV
+			axon[i].e_extracellular = 10000*rhoe*stim.i/(4*PI*sqrt((x_axon.x[i] - x_stim)^2 + z_stim^2))
+		}
+		fadvance()
+	}
+}
+//stimul()
+
+// ************************** Find threshold ************************************
+proc find_thresh() {
+	lower_bound = lower_bound_init
+	upper_bound = upper_bound_init
+	
+	stimul(upper_bound)
+	
+	if (apc.n == 0) {
+		print "ERROR: Initial istim_top value does not elicit an AP - need to increase its magnitude"
+		return 0
+	} else {
+		while(1) {
+			new_guess = (lower_bound + upper_bound) / 2
+			stimul(new_guess)
+			//print new_guess, apc.n
+			
+			if ( abs(upper_bound - lower_bound) < resolution ) {
+				if (apc.n == 0) {
+					new_guess = last_guess
+					stimul(last_guess)		// for plotting
+				}
+				print "Done searching! D = ", D, "um; thresh = ", new_guess, "mA"
+				break
+			} else if (apc.n >= 1) {
+				last_guess = new_guess
+				upper_bound = new_guess
+			} else if (apc.n == 0) {
+				lower_bound = new_guess
+			}
+		}
+	}
+}
+//find_thresh()
+
+// ************************** Data analysis & output ****************************
+// Plot Vm(t) and stimulus
+objref g1, g2, g3
+proc plot_data() {
+	g1 = new Graph()
+	g1.size(0, num_timesteps, -100, 100)
+	Vm_vec[6].plot(g1)
+	
+	g2 = new Graph()
+	g2.size(0, num_timesteps, -100, 100)
+	Vm_vec[48].plot(g2)
+	
+	g3 = new Graph()
+	g3.size(0, num_timesteps, 0, 10)
+	stim_vec.plot(g3)
+}
+//plot_data()
+
+// Save Im(t) to a file
+objref f1
+strdef fname
+proc save_data() {local myD
+	myD = $1
+	
+	// Convert Im(t) from mA/cm^2 to nA
+	access axon[checknode]
+	Im_vec.mul(area(0.5))	// mA*um^2/cm^2
+	Im_vec.mul(0.01)		// nA
+	
+	print area(0.5)
+	
+	// Open file
+	sprint(fname,"Im_%dum.dat",myD)
+	f1 = new File()
+	f1.wopen(fname)
+
+	// Print to file
+	f1.printf("Time(ms) Im(nA) \n")
+	for J=0, num_timesteps-1 {
+		f1.printf("%f ", J*dt)
+		f1.printf("%f\n", Im_vec.x[J])
+	}
+	f1.close()	
+}
+
+// ************************** Batch run *****************************************
+proc batchrun() {
+	for D_ind = 0, num_Dvalues-1 {
+		params(D_vec.x[D_ind])
+		initialize()
+		ext_stim()
+		recording()
+		find_thresh()
+		stimul(last_guess*2)
+		save_data(D_vec.x[D_ind])
+	}
+}
+batchrun()

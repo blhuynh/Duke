@@ -1,0 +1,324 @@
+//load_file("nrngui.hoc") 
+//load_proc("nrnmainmenu")
+
+// ************************** Model specification *******************************
+proc model_globals() {			
+// extracellular stimulation parameters
+	tdel = 100 		// delay before stimulation (ms)
+	traindur = 900 	// duration of train (ms)
+	pw2 = 200e-3 	// pulse width of stimulation frequency 2 (ms)
+	freq1 = 0.025 	// carrier frequency of stimulation (Hz)
+	freq2 = 140 	// stimulation frequency (Hz)
+	pol = -1    	// anodic = 1, cathodic = -1
+	Velec = pol*25 	// current voltage of electrode (V)	
+// simulation time parameters
+	tstop = tdel+traindur 	// time to stop (ms)
+	dt = 0.1 				// time integration timestep (ms)
+	steps_per_ms = 1/dt
+	no_t_pts=int(tstop/dt)+1// # of time points (#)
+//electrical parameters//
+	erev_pass=-80 	// reversal potential for passive channels
+	v_init=-80		// initial condition for membrane voltage (mV)
+	rhoa=0.7e6 		// axoplasmic resestivity (Ohm-um)
+	mycm=0.1   		// myelin lamella membrane specific capacitance (uF/cm^2)
+	mygm=0.001 		// myelin lamella membrane specific conductance (S/cm^2)	
+// axon geometry
+	fiberD=1     	// fiber diameter (um)
+	aed=1 			// axon to electrode distance (mm)
+	mysalength=3    // paranode length (um)
+	nodelength=1    // node of Ranvier length (um)
+	space_p1=0.002 	// periaxonal space for axon nodes
+	space_p2=0.004 	// periaxonal space for paranodes
+	space_i=0.004 	// periaxonal space for axon internodes	
+	D=fiberD
+	deltax=0.1207*D^4 - 5.0396*D^3 + 67.8440*D^2 - 219.7125*D + 375.3634 // internodal length
+	maxarc=50
+//topological parameters//	
+	nonode=1
+	nomysa=2
+	noflut=2
+	nostin=3
+	noele=nonode+nomysa+noflut+nostin
+	axonnodes=int(maxarc/deltax/1e-3)+1
+	mysanodes=nomysa*(axonnodes-1)  // MYSA paranodes
+	flutnodes=noflut*(axonnodes-1)  // FLUT paranodes
+	stinnodes=nostin*(axonnodes-1)  // STIN internodes
+	total=axonnodes+mysanodes+flutnodes+stinnodes // total number
+//temperature
+	celsius=37 //cell temperature (degrees Celsius)	
+//boolean variables
+	fire = 0
+}
+model_globals()
+
+proc dependent_var() {
+	// fits provided by Bryan Howell (11/14/2014)
+	// paralength1 = mysa length
+	// paralength2 = flut length
+	D=fiberD
+	axonD=0.0216*D^2 + 0.4112*D + 0.4943
+	nodeD=0.0076*D^2 + 0.1746*D + 0.7319
+	paraD1=nodeD
+	paraD2=0.0216*D^2 + 0.4112*D + 0.4943
+	deltax=0.1207*D^4 - 5.0396*D^3 + 67.8440*D^2 - 219.7125*D + 375.3634
+	flutlength=0.0003*D^6 - 0.0163*D^5 + 0.3425*D^4 - 3.4752*D^3 + 17.1212*D^2 - 31.4582*D + 27.4112
+	nl=-0.4460*D^2+16.2176*D+2.3881
+	
+	Rpn0=(rhoa*.01)/(PI*((((nodeD/2)+space_p1)^2)-((nodeD/2)^2)))
+	Rpn1=(rhoa*.01)/(PI*((((paraD1/2)+space_p1)^2)-((paraD1/2)^2)))
+	Rpn2=(rhoa*.01)/(PI*((((paraD2/2)+space_p2)^2)-((paraD2/2)^2)))
+	Rpx=(rhoa*.01)/(PI*((((axonD/2)+space_i)^2)-((axonD/2)^2)))
+	stinlength=(deltax-nodelength-(nomysa*mysalength)-(noflut*flutlength))/nostin
+}
+dependent_var()
+
+// ************************** Model initialization ******************************
+create node[axonnodes], MYSA[mysanodes], FLUT[flutnodes], STIN[stinnodes]
+objref axon[total] 
+
+proc initialize(){
+	for i=0,axonnodes-1 {
+		node[i]{	
+		
+		    indx = nonode + i*noele
+			axon[indx-1] = new SectionRef()		
+			
+			nseg=1
+			diam=nodeD
+			L=nodelength
+			Ra=rhoa/10000
+			cm=2
+			insert axnode			
+			insert extracellular 
+			xraxial=Rpn0// periaxonal dist. resistivity (MOhms/cm)
+			xg=1e10// periaxonal membrane conductance (S/cm^2) => short-circuit 
+			xc=0// periaxonal membrane capac. (uF/cm^2) => short-circuit
+			}
+	}
+	for i=0, mysanodes-1 {
+		MYSA[i]{
+			if(i%2==0) { 
+				indx = (nonode+1) + int(i/2)*noele 
+			} 
+			if(i%2==1) { 
+				indx = (nonode+1) + int(i/2)*noele + noflut + nostin + 1 
+			}
+			axon[indx-1] = new SectionRef()
+			
+			nseg=1
+			diam=fiberD
+			L=mysalength
+			Ra=rhoa*(1/(paraD1/fiberD)^2)/10000// ohm-um -> ohm-cm
+			cm=2*paraD1/fiberD
+			insert pas
+			g_pas=0.001*paraD1/fiberD		
+			e_pas=erev_pass
+			insert extracellular 
+			xraxial=Rpn1 
+			xg=mygm/(nl*2)// lumps all lamellae specific conductances into 1 membrane
+			xc=mycm/(nl*2)// lumps all lamellae specific capacitances into 1 membrane
+			}
+	}	
+	for i=0, flutnodes-1 {
+		FLUT[i]{
+			if(i%2==0) { 
+				indx = (nonode+2) + int(i/2)*noele 
+			} 
+			if(i%2==1) { 
+				indx = (nonode+2) + int(i/2)*noele + nostin + 1 
+			}
+			axon[indx-1] = new SectionRef()
+			
+			nseg=1
+			diam=fiberD
+			L=flutlength
+			Ra=rhoa*(1/(paraD2/fiberD)^2)/10000// ohm-um -> ohm-cm
+			cm=2*paraD2/fiberD
+			insert pas
+			g_pas=0.0001*paraD2/fiberD		
+			e_pas=erev_pass
+			insert extracellular 
+			xraxial=Rpn2 
+			xg=mygm/(nl*2) 
+			xc=mycm/(nl*2)
+			}
+	}
+	for i=0, stinnodes-1 {
+		STIN[i]{
+		    if (i%3 == 0) { 
+				indx = (nonode+3) + int(i/3)*noele 
+			}
+			if (i%3 == 1) { 
+				indx = (nonode+3) + int(i/3)*noele + 1
+			}
+			if (i%3 == 2) { 
+				indx = (nonode+3) + int(i/3)*noele + 2
+			}
+			axon[indx-1] = new SectionRef()
+			
+			nseg=1
+			diam=fiberD
+			L=stinlength
+			Ra=rhoa*(1/(axonD/fiberD)^2)/10000// ohm-um -> ohm-cm
+			cm=2*axonD/fiberD
+			insert pas
+			g_pas=0.0001*axonD/fiberD
+			e_pas=erev_pass
+			insert extracellular 
+			xraxial=Rpx 
+			xg=mygm/(nl*2) 
+			xc=mycm/(nl*2)
+			}
+	}	
+	for i=0, axonnodes-2 {
+		connect MYSA[2*i](0), node[i](1)
+		connect FLUT[2*i](0), MYSA[2*i](1)
+		connect STIN[3*i](0), FLUT[2*i](1)
+		connect STIN[3*i+1](0), STIN[3*i](1)
+		connect STIN[3*i+2](0), STIN[3*i+1](1)
+		connect FLUT[2*i+1](0), STIN[3*i+2](1)
+		connect MYSA[2*i+1](0), FLUT[2*i+1](1)
+		connect node[i+1](0), MYSA[2*i+1](1)
+	}
+	
+	finitialize(v_init)
+	fcurrent()
+}
+initialize()
+
+// ************************** Instrumentation ***********************************
+
+// ------------------------- Extracellular Stimulation -------------------
+
+objref file
+objref ve_data
+strdef voldir, volfile, polarity
+
+proc get_extpot () {
+	
+	polarity="bp"
+	sprint(volfile,"phiaxon_%s_%gum_ye%gmm.txt",polarity,fiberD,aed)
+
+	// chdir("pointsource_potentials")
+	file = new File(volfile)
+	file.ropen()
+
+	ve_data = new Vector()
+	ve_data.scanf(file,total)
+	ve_data.mul(pol)
+	file.close()
+	// chdir("..")
+
+}
+get_extpot()
+
+objref phi_ext
+phi_ext = new Vector(total,0)
+
+proc potential(){
+	
+	v_scale = abs(Velec)
+	phi_ext = ve_data.at(0,total-1)
+	phi_ext = phi_ext.mul(1000*v_scale)
+		
+}
+
+// two stimulation trains
+// carrier at 0.05 Hz (20s on, 20s off)
+// one at 120 Hz 
+load_file("stim_waveforms.hoc")
+
+// ------------------------- Recording Values -----------------------------
+// variables from model file = [variable]_[modfile shortname] (e.g., h_axnode)
+
+// recording membrane voltage at all nodes of Ranvier
+objref volmem[axonnodes], apc[axonnodes], spikes[axonnodes]
+objref hgates[axonnodes], stimwave, tvec
+
+recnode1=0
+midnode=(axonnodes+1)/2
+recnode2=axonnodes-1
+
+print "Middle Node (midnode) = ",midnode
+print "Effective End Node (recnode2) = ",recnode2
+
+for i=0, axonnodes-1{
+
+	volmem[i]=new Vector()
+	hgates[i]=new Vector()
+	volmem[i].record( &node[i].v(.5) )
+	hgates[i].record( &node[i].h_axnode(.5) )
+	
+	spikes[i]      = new Vector()
+	
+	node[i] apc[i] = new APCount(0.5)
+	apc[i].thresh  = 0
+	apc[i].record( spikes[i] )
+	
+}
+
+// recording time points
+stimwave=new Vector(no_t_pts,0)
+tvec=new Vector()
+tvec.record(&t)
+
+// ************************** Simulation control ********************************
+{load_file("stim_waveforms.hoc")}
+//time integration
+proc advance() {
+	// setting extracellular potentials
+	for jj=0,total-1{
+		f1 = monostim(t,tdel,tstop-tdel,1e3/(2*freq1),freq1)
+		f2 = biasymstim(t,tdel,tstop-tdel,pw2,freq2)
+		onoff = f1 * f2
+		stimwave.x[int(t/dt)] = onoff * Velec
+		axon[jj].sec.e_extracellular(0.5) = phi_ext.x[jj]*onoff // mV
+	}
+
+	// print out time (ms)
+	if (t == int(t)){
+		printf("t=%1.3fs \n",t*1e-3)
+	}
+
+	fadvance()
+}
+
+proc stimaxon() {
+	potential()
+	run()
+	plotstim()
+	plotvm(axonnodes-2)
+}
+
+// plot Istim
+objref g_stim
+proc plotstim() {
+	g_stim=new Graph()
+	g_stim.size(0,stimwave.size()-1,-abs(Velec),abs(Velec))
+	stimwave.plot(g_stim)
+}
+
+// plot vm
+objref g_vm
+proc plotvm(){
+	// print "Plotting Vm at node",$1
+	g_vm=new Graph()
+	g_vm.size(0,volmem[$1].size()-1,-100,50)
+	volmem[$1].plot(g_vm)
+}
+
+// write stimulation vector into text file
+objref stimfile
+proc writestim(){
+	stimfile = new File()
+	stimfile.wopen("find_vth_output_Istim.txt")
+	for k=0,stimwave.size()-1{
+		stimfile.printf("%g %g \n",k*dt,stimwave.x[k])
+	}
+	stimfile.close()
+}
+
+
+print "Velec = ",Velec,"mA"
+stimaxon()
+writestim()
