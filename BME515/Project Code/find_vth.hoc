@@ -4,16 +4,16 @@
 // ************************** Model specification *******************************
 proc model_globals() {			
 // extracellular stimulation parameters
-	tdel = 100 		// delay before stimulation (ms)
-	traindur = 900 	// duration of train (ms)
+	tdel = 5 		// delay before stimulation (ms)
+	traindur = 45 	// duration of train (ms)
 	pw2 = 200e-3 	// pulse width of stimulation frequency 2 (ms)
 	freq1 = 0.025 	// carrier frequency of stimulation (Hz)
-	freq2 = 140 	// stimulation frequency (Hz)
+	freq2 = 120 	// stimulation frequency (Hz)
 	pol = -1    	// anodic = 1, cathodic = -1
-	Velec = pol*25 	// current voltage of electrode (V)	
+	Velec = pol*1 	// current voltage of electrode (V)	
 // simulation time parameters
 	tstop = tdel+traindur 	// time to stop (ms)
-	dt = 0.1 				// time integration timestep (ms)
+	dt = 0.05 				// time integration timestep (ms)
 	steps_per_ms = 1/dt
 	no_t_pts=int(tstop/dt)+1// # of time points (#)
 //electrical parameters//
@@ -196,8 +196,9 @@ strdef voldir, volfile, polarity
 
 proc get_extpot () {
 	
-	polarity="bp"
-	sprint(volfile,"phiaxon_%s_%gum_ye%gmm.txt",polarity,fiberD,aed)
+	// polarity="bp"
+	// sprint(volfile,"phiaxon_%s_%gum_ye%gmm.txt",polarity,fiberD,aed)
+	volfile="phiaxon.txt"
 
 	// chdir("pointsource_potentials")
 	file = new File(volfile)
@@ -219,7 +220,7 @@ proc potential(){
 	
 	v_scale = abs(Velec)
 	phi_ext = ve_data.at(0,total-1)
-	phi_ext = phi_ext.mul(1000*v_scale)
+	phi_ext = phi_ext.mul(1000*v_scale) // V -> mV
 		
 }
 
@@ -264,6 +265,8 @@ tvec.record(&t)
 
 // ************************** Simulation control ********************************
 {load_file("stim_waveforms.hoc")}
+{load_file("fiber_threshold.hoc")}
+
 //time integration
 proc advance() {
 	// setting extracellular potentials
@@ -276,17 +279,26 @@ proc advance() {
 	}
 
 	// print out time (ms)
-	if (t == int(t)){
-		printf("t=%1.3fs \n",t*1e-3)
-	}
+	// if (t == int(t)){
+	// 	printf("t=%1.3fs \n",t*1e-3)
+	// }
 
 	fadvance()
+}
+
+proc checkfire(){
+	if (apc.n < 3) {
+		fire = 0
+	} else {
+		fire = 1
+	}
 }
 
 proc stimaxon() {
 	potential()
 	run()
 	plotstim()
+	checkfire()
 	plotvm(axonnodes-2)
 }
 
@@ -311,14 +323,30 @@ proc plotvm(){
 objref stimfile
 proc writestim(){
 	stimfile = new File()
-	stimfile.wopen("find_vth_output_Istim.txt")
+	stimfile.wopen("istim3.txt")
 	for k=0,stimwave.size()-1{
 		stimfile.printf("%g %g \n",k*dt,stimwave.x[k])
 	}
 	stimfile.close()
 }
 
+// write volmem vector into text file
+objref vmfile
+proc writevm(){
+	vmfile = new File()
+	vmfile.wopen("vm3.txt")
+	for k=0,volmem[$1].size()-1{
+		vmfile.printf("%g %g \n",k*dt,volmem[$1].x[k])
+	}
+	vmfile.close()
+}
 
-print "Velec = ",Velec,"mA"
+Istim = 1.83
+pol = -1
+Velec = pol*Istim
 stimaxon()
+
+vth = get_Vthresh(&Velec)
+
 writestim()
+writevm(axonnodes-2)

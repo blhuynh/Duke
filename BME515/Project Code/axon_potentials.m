@@ -51,39 +51,69 @@ xyz_axon=xyz_axon';
 % plot3(xyz_axon(2,:),xyz_axon(2,:),xyz_axon(3,:),'k.');
 
 %% -------------------- Calculate Potentials ------------------------------
-% intradural = 17.7, extradural = 22.7
-
-mono=0;
-if(mono==1)
-    cfac=0;
-    ptag='mp';
-else
-    cfac=1;
-    ptag='bp';
-end
-
 % conversion ratios
 mmPerInch = unitsratio('mm','in');
 
-xe1=0;
-ye1=1;
-ze1=0;
-xe2=0;
-ye2=ye1;
-ze2=0.5*mmPerInch; % (inch->mm)
+skinthickness = 2.25; % (mm)
+fatthickness = 18; % (mm)
+sigma1=1/1000 * 1e-3; % skin conductivity (S/m -> S/mm);
+sigma2=1/27.33 * 1e-3; % fat conductivity
+z = skinthickness+fatthickness;
+sigmalumped = 1/(skinthickness/(z*sigma1) + fatthickness/(z*sigma2));
+iunit=25e-3; % (mA -> A)
 
-sigma1=16e-3 * 1e-3; % skin conductivity (S/m -> S/mm);
-sigma2=2733e-2 * 1e-3; % fat conductivity
-iunit=1e-3; % (mA -> A)
+a = 1.25/2*mmPerInch;   % electrode radius in mm 
+I = 1;                  % current in mA
 
-re1=[xe1;ye1;ze1];
-re2=[xe2;ye2;ze2];
+%% Wiley and Webster
+% Current density
+J = I./(pi.*a^2); % mA/mm^2
 
-% DC body
-r1_axon=sqrt( sum((xyz_axon-re1*ones(1,numtotele)).^2,1) );
-r2_axon=sqrt( sum((xyz_axon-re2*ones(1,numtotele)).^2,1) );
-phi_axon=(iunit/4/pi/(sigma1+sigma2))*(1./r1_axon-cfac*1./r2_axon);
+r = abs(xyz_axon(3,:));
 
-plot(xyz_axon(3,:),phi_axon,'k');
+% calculate potential at electrode-medium boundary
+V0 = zeros(size(r));
+V0(r<a) = pi * J * sqrt(a^2-r(r<a).^2) / (2*sigmalumped) * 1e-3; % mV -> V
 
-dlmwrite(['phiaxon_',ptag,'_',num2str(D),'um_ye',num2str(ye1),'mm.txt'],phi_axon,'delimiter',' ','precision',8);
+% calculate potential at fiber
+V = 2/pi * max(V0) .* asin(2*a ./ ( sqrt((r-a).^2+z^2) + sqrt((r+a).^2+z^2) ) );
+
+% figure(1); clf; hold on
+% ax(1) = subplot(2,1,1);
+% plot(xyz_axon(3,:),V0,'k')
+% title('Electrode Surface Potentials (z=0mm)')
+% xlabel('Distance (r)'); ylabel('Voltage (V)')
+% gzoom; setfont(18)
+% 
+% ax(2) = subplot(2,1,2);
+% plot(xyz_axon(3,:),V,'k')
+% title(sprintf('Axon Potentials (z=%gmm)',z))
+% xlabel('Distance (r)'); ylabel('Voltage (V)')
+% gzoom; setfont(18)
+% 
+% linkaxes(ax,'xy')
+% print -dpng potentials
+
+figure(3); clf; hold on
+plot(xyz_axon(3,:),V,'k')
+title(sprintf('Axon Potentials (z=%gmm)',z))
+xlabel('Distance (r)'); ylabel('Voltage (V)')
+gzoom; setfont(18)
+print -dpng potentials
+
+
+dlmwrite('phiaxon.txt',V,'delimiter',' ','precision',8);
+
+%% activating function
+vnor = V(1:8:end);
+dnor = xyz_axon(3,1:8:end);
+
+d2 = diff(diff(vnor));
+
+figure(2); clf; hold on
+plot(dnor(2:end-1),d2,'k')
+title('Activating Function')
+xlabel('Position (mm)'); ylabel('\delta^2 V')
+axis tight; gzoom
+setfont(18)
+print -dpng activatingfunction

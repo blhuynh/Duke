@@ -1,0 +1,71 @@
+/*
+Return Vth for a single axon. 
+Written by Bryan Howell
+*/
+
+func get_Vthresh() {
+	Vth = 0
+
+	Vcap = 100*$&1			// maximum allowed Velec threshold
+	Vtop = 0.25*$&1         // starting ceiling value for finding threshold
+	Vtol = 1e-2				// desired precision of the threshold		
+	Lbnd = 0				// Velec that doesn't elicit an AP (0 is a sure choice)
+	Rbnd = Vtop				// Velec that elicits an AP (fiber location dependent)
+	
+	// is the starting ceiling value high enough?
+	$&1 = Rbnd
+	stimaxon()
+	
+	// increasing ceiling value
+	while( abs(Rbnd) < abs(Vcap) && fire == 0 ){
+		print "Increasing ceiling value...Velec=",Velec
+		Rbnd = Rbnd*2
+		$&1  = Rbnd
+		stimaxon()		
+	}
+
+	// making sure the ceiling value is capped
+	if( abs(Rbnd) > abs(Vcap) ){ Rbnd = Vcap }
+
+	Vdel = abs(Rbnd - Lbnd)
+			
+	while( Vdel > Vtol ){
+		print "Running binary search algorithm...Velec=",Velec
+		
+		Vmid  = (Lbnd + Rbnd)/2
+		$&1   = Vmid
+		stimaxon()
+		
+		// making sure solution didn't return "nan" for large values
+		nopt1    = volmem[recnode1].size()
+		vm_f1    = volmem[recnode1].x[nopt1-1]
+		nopt2    = volmem[recnode1].size()
+		vm_f2    = volmem[recnode1].x[nopt2-1]
+		ck_good = (vm_f1 == vm_f1 && vm_f2 == vm_f2)
+		
+		// increase Lbnd if no AP occurs
+		// decrease Rbnd if AP occurs
+		if (fire == 0 && ck_good == 1) {
+			Lbnd = Vmid
+		} else {
+			Rbnd = Vmid
+		}
+		Vdel = abs(Rbnd - Lbnd)
+	}
+	
+	// Seeing if no threshold was found
+	$&1 = Rbnd
+	stimaxon()
+	
+	// Resetting range for next fiber
+	Lbnd        = 0
+	Rbnd        = Vtop
+	
+	// Threshold Voltage
+	if(fire == 0) {
+		Vth = Vcap
+	} else {
+		Vth = $&1
+	}	
+	return Vth
+}
